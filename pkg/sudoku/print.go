@@ -23,4 +23,6 @@ func (p *SudokuPair) PrintPair() {
 	p.Inverted.PrintPuzzle()
 	fmt.Println("Solution:")
 	p.Solution.PrintPuzzle()
+	fmt.Println("Empty:")
+	p.Empty.PrintPuzzle()
 }

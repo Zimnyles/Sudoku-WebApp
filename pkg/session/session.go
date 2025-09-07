@@ -35,7 +35,40 @@ func (s *SessionStorage) SetActiveSudokuData(c *fiber.Ctx, sudokuGrid sudoku.Sud
 	if err != nil {
 		return fmt.Errorf("failed to marshal sudoku data: %w", err)
 	}
-	sess.Set("sudoku_data", string(jsonData))
+	sess.Set("sudoku_puzzle_data", string(jsonData))
+	if err := sess.Save(); err != nil {
+		return fmt.Errorf("failed to save session: %w", err)
+	}
+	return nil
+}
+
+func (s *SessionStorage) SetFailData(c *fiber.Ctx) error {
+	sess, err := s.GetSession(c)
+	if err != nil {
+		return fmt.Errorf("failed to get session: %w", err)
+	}
+
+	fails := sess.Get("fails").(int)
+
+	actualFails := fails + 1
+
+	sess.Set("fails", actualFails)
+	if err := sess.Save(); err != nil {
+		return fmt.Errorf("failed to save session: %w", err)
+	}
+	return nil
+}
+
+func (s *SessionStorage) SetEmptySudokuData(c *fiber.Ctx, sudokuGrid sudoku.SudokuGrid) error {
+	sess, err := s.GetSession(c)
+	if err != nil {
+		return fmt.Errorf("failed to get session: %w", err)
+	}
+	jsonData, err := json.Marshal(sudokuGrid)
+	if err != nil {
+		return fmt.Errorf("failed to marshal sudoku data: %w", err)
+	}
+	sess.Set("sudoku_empty_data", string(jsonData))
 	if err := sess.Save(); err != nil {
 		return fmt.Errorf("failed to save session: %w", err)
 	}
@@ -53,25 +86,29 @@ func (s *SessionStorage) SaveSession(sess *session.Session) error {
 func (s *SessionStorage) GetActiveAllSudokuData(c *fiber.Ctx) (*sudoku.SudokuPair, error) {
 	sess, err := s.GetSession(c)
 	if err != nil || sess == nil {
-		return nil, nil 
+		return nil, nil
 	}
 
 	rawPuzzle := sess.Get("sudoku_puzzle_data")
 	rawInverted := sess.Get("sudoku_inverted_data")
 	rawSolution := sess.Get("sudoku_solution_data")
+	rawEmpty := sess.Get("sudoku_empty_data")
+	rawFails := sess.Get("fails")
 
-	if rawPuzzle == nil || rawInverted == nil || rawSolution == nil {
+	if rawPuzzle == nil || rawInverted == nil || rawSolution == nil || rawEmpty == nil {
 		return nil, nil
 	}
 
 	strPuzzle, ok1 := rawPuzzle.(string)
 	strInverted, ok2 := rawInverted.(string)
 	strSolution, ok3 := rawSolution.(string)
-	if !ok1 || !ok2 || !ok3 {
+	strEmpty, ok4 := rawEmpty.(string)
+	intFails, ok5 := rawFails.(int)
+	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 {
 		return nil, fmt.Errorf("invalid session data")
 	}
 
-	var puzzle, inverted, solution sudoku.SudokuGrid
+	var puzzle, inverted, solution, empty sudoku.SudokuGrid
 	if err := json.Unmarshal([]byte(strPuzzle), &puzzle); err != nil {
 		return nil, err
 	}
@@ -82,10 +119,17 @@ func (s *SessionStorage) GetActiveAllSudokuData(c *fiber.Ctx) (*sudoku.SudokuPai
 		return nil, err
 	}
 
+	if err := json.Unmarshal([]byte(strEmpty), &empty); err != nil {
+		return nil, err
+	}
+
+	fails := intFails
+
 	return &sudoku.SudokuPair{
 		Puzzle:   &puzzle,
 		Inverted: &inverted,
 		Solution: &solution,
+		Empty:    &empty,
+		Fails:    fails,
 	}, nil
 }
-

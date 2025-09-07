@@ -58,6 +58,15 @@ func (s *GameService) NewGame(difficult int, c *fiber.Ctx) error {
 	}
 	sess.Set("sudoku_solution_data", string(jsonSudokuSolution))
 
+	jsonSudokuEmpty, err := json.Marshal(grids.Empty)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Failed to marshal jsonSudokuInverted data")
+		return c.Status(fiber.StatusInternalServerError).SendString("InternalServerError")
+	}
+	sess.Set("sudoku_empty_data", string(jsonSudokuEmpty))
+
+	sess.Set("fails", 0)
+
 	s.store.SaveSession(sess)
 
 	return nil

@@ -1,9 +1,12 @@
 package game
 
 import (
+	"encoding/json"
 	"fmt"
 	"sudoku/pkg/session"
 	"sudoku/pkg/sudoku"
+	"sudoku/pkg/tadapter"
+	"sudoku/web/pages"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
@@ -38,20 +41,64 @@ func NewGameHandler(router fiber.Router, logger *zerolog.Logger, service IGameSe
 
 }
 
-//1 Получаем значение, линию, колонку
-//2 Берем из редиса актуальную сетку
-//3 Подставляем в нужное место значение
-//4 Если правильно, то обновляем актуальную сетку и отдаем ответ
-//4 Если НЕ правильно, то НЕ обновляем актуальную сетку и отдаем ответ
-
 func (h *GameHandler) apiCellRequest(c *fiber.Ctx) error {
-	return nil
-}
+	req := new(CellRequest)
+	if err := c.BodyParser(req); err != nil {
+		h.logger.Error().Err(err).Msg("Failed to parse cell request")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid request",
+		})
+	}
 
-//1 Проверяем есть ли активная игровая сессия
-//2 Если нет создаем новую
-//3 Сохраняем в редис
-//4 Отдаем страницу
+	grids, err := h.store.GetActiveAllSudokuData(c)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get active sudoku data")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "session error",
+		})
+	}
+
+	if req.IsCorrect {
+		if grids.Solution.Grid[req.Row][req.Col].Value == req.Value {
+			grids.Puzzle.Grid[req.Row][req.Col].Value = req.Value
+			if err := h.store.SetActiveSudokuData(c, *grids.Puzzle); err != nil {
+				h.logger.Error().Err(err).Msg("Failed to save sudoku data to session")
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "failed to save",
+				})
+			}
+		}
+
+		return c.JSON(fiber.Map{
+			"row":   req.Row,
+			"col":   req.Col,
+			"value": req.Value,
+			"ok":    true,
+		})
+	}
+
+	grids.Empty.Grid[req.Row][req.Col].Value = req.Value
+	if err := h.store.SetEmptySudokuData(c, *grids.Empty); err != nil {
+		h.logger.Error().Err(err).Msg("Failed to save sudoku data to session")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to save",
+		})
+	}
+	if err := h.store.SetFailData(c); err != nil {
+		h.logger.Error().Err(err).Msg("Failed to save fail data to session")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to save",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"row":   req.Row,
+		"col":   req.Col,
+		"value": req.Value,
+		"ok":    true,
+	})
+
+}
 
 func (h *GameHandler) game(c *fiber.Ctx) error {
 	data, err := h.store.GetActiveAllSudokuData(c)
@@ -71,11 +118,38 @@ func (h *GameHandler) game(c *fiber.Ctx) error {
 			h.logger.Error().Err(err).Msg("Failed to get newly created game")
 			return c.Status(fiber.StatusInternalServerError).SendString("Server error")
 		}
+
+		puzzleJSON, _ := json.Marshal(data.Puzzle.Grid)
+		solutionJSON, _ := json.Marshal(data.Solution.Grid)
+
+		templateData := templateData{
+			Grids:        data,
+			PuzzleJSON:   string(puzzleJSON),
+			SolutionJSON: string(solutionJSON),
+			Fails:        data.Fails,
+		}
+
+		data.PrintPair()
+		fmt.Println("fails: ", data.Fails)
+		comp := pages.GamePage(templateData)
+		return tadapter.Render(c, comp, 200)
 	}
 
-	return c.JSON(data)
-}
+	puzzleJSON, _ := json.Marshal(data.Puzzle.Grid)
+	solutionJSON, _ := json.Marshal(data.Solution.Grid)
 
+	templateData := templateData{
+		Grids:        data,
+		Fails:        data.Fails,
+		PuzzleJSON:   string(puzzleJSON),
+		SolutionJSON: string(solutionJSON),
+	}
+
+	data.PrintPair()
+	fmt.Println("fails: ", data.Fails)
+	comp := pages.GamePage(templateData)
+	return tadapter.Render(c, comp, 200)
+}
 
 func (h *GameHandler) actual(c *fiber.Ctx) error {
 	data, err := h.store.GetActiveAllSudokuData(c)
@@ -90,7 +164,7 @@ func (h *GameHandler) actual(c *fiber.Ctx) error {
 func (h *GameHandler) test(c *fiber.Ctx) error {
 	data := sudoku.NewSudokuPair(40)
 
-	data.PrintPair() // выведет все три сетки красиво
+	data.PrintPair()
 
 	return nil
 }

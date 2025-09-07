@@ -4,6 +4,8 @@ type SudokuPair struct {
 	Puzzle   *SudokuGrid
 	Inverted *SudokuGrid
 	Solution *SudokuGrid
+	Empty    *SudokuGrid
+	Fails    int
 }
 
 type SudokuGrid struct {

@@ -1,0 +1,111 @@
+<div x-data="sudokuApp()" class="bg-beige min-h-screen flex flex-col items-center p-4 font-sans">
+    <!-- Header -->
+    <header class="w-full flex justify-between items-center mb-4">
+        <h1 class="text-3xl font-bold text-brown">Sudoku</h1>
+        <div class="flex gap-2">
+            <button @click="newGame()" class="btn">Новая игра</button>
+            <select x-model="difficulty" @change="newGame()" class="btn">
+                <option value="superEasy">Супер легко</option>
+                <option value="easy">Легко</option>
+                <option value="middle">Средне</option>
+                <option value="hard">Сложно</option>
+                <option value="extreme">Экстрим</option>
+            </select>
+            <button @click="resetGame()" class="btn">Сбросить</button>
+            <button @click="hint()" class="btn">Подсказка</button>
+        </div>
+    </header>
+
+    <!-- Sudoku Grid -->
+    <main class="grid grid-cols-9 gap-1 bg-light-beige p-2 rounded-lg shadow-lg">
+        <template x-for="(row, rIndex) in grid" :key="rIndex">
+            <div class="grid grid-cols-9 gap-1 w-full">
+                <template x-for="(cell, cIndex) in row" :key="cIndex">
+                    <input type="text" maxlength="1" class="cell text-center border rounded w-10 h-10"
+                        x-model="grid[rIndex][cIndex]" @input="validateCell(rIndex, cIndex)">
+                </template>
+            </div>
+        </template>
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-4 flex justify-between w-full max-w-md">
+        <div>Время: <span x-text="timer"></span></div>
+        <div>Ошибки: <span x-text="mistakes"></span></div>
+    </footer>
+</div>
+
+<script>
+    function sudokuApp() {
+        return {
+            grid: Array.from({ length: 9 }, () => Array(9).fill('')),
+            solution: Array.from({ length: 9 }, () => Array(9).fill('')),
+            timer: '00:00',
+            mistakes: 0,
+            difficulty: 'middle',
+
+            newGame() {
+                // fetch grid from backend via HTMX
+                fetch(`/api/newgame?difficulty=${this.difficulty}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        this.grid = data.puzzle;
+                        this.solution = data.solution;
+                        this.mistakes = 0;
+                    });
+            },
+
+            resetGame() {
+                this.grid = JSON.parse(JSON.stringify(this.puzzle));
+                this.mistakes = 0;
+            },
+
+            hint() {
+                // fill one empty cell with correct value
+                for (let r = 0; r < 9; r++) {
+                    for (let c = 0; c < 9; c++) {
+                        if (this.grid[r][c] === '') {
+                            this.grid[r][c] = this.solution[r][c];
+                            return;
+                        }
+                    }
+                }
+            },
+
+            validateCell(r, c) {
+                if (this.grid[r][c] !== '' && this.grid[r][c] != this.solution[r][c]) {
+                    this.mistakes++;
+                }
+            }
+        }
+    }
+</script>
+
+<style>
+    .bg-beige {
+        background-color: #f5f0e6;
+    }
+
+    .bg-light-beige {
+        background-color: #fdf8f0;
+    }
+
+    .text-brown {
+        color: #7b5e57;
+    }
+
+    .cell {
+        font-size: 1.2rem;
+    }
+
+    .btn {
+        background-color: #d6c4b7;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+    }
+
+    .btn:hover {
+        background-color: #c9b299;
+    }
+</style>

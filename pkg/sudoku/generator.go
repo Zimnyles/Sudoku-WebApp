@@ -6,25 +6,41 @@ import (
 
 func NewSudokuPair(emptyCells int) *SudokuPair {
 	solution := NewEmptyGrid()
-	solution.Randomize()  
-	solution.MakePuzzle(0) 
+	solution.Randomize()
+	solution.MakePuzzle(0)
 
-	puzzle := solution.copy() 
+	puzzle := solution.copy()
 	puzzle.MakePuzzle(emptyCells)
 
 	inverted := puzzle.InvertPuzzle(solution)
+
+	empty := NewZeroGrid()
+	empty.fillEmpty()
 
 	return &SudokuPair{
 		Puzzle:   puzzle,
 		Inverted: inverted,
 		Solution: solution,
+		Empty:    empty,
 	}
+}
+
+func NewZeroGrid() *SudokuGrid {
+	return &SudokuGrid{}
 }
 
 func NewEmptyGrid() *SudokuGrid {
 	s := &SudokuGrid{}
 	s.baseGrid()
 	return s
+}
+
+func (s *SudokuGrid) fillEmpty() {
+	for row := 0; row < rowLimit; row++ {
+		for col := 0; col < colLimit; col++ {
+			s.Grid[row][col].Value = 0
+		}
+	}
 }
 
 func (s *SudokuGrid) Randomize() {
